@@ -33,33 +33,6 @@ def read_mrc_file(file_path):
         sys.exit(1)
     return volume, voxel_size
 
-def write_mrcs_file(file_path, data_stack, voxel_size):
-    """Writes a stack of images to an .mrcs file."""
-    try:
-        with mrcfile.new(file_path, overwrite=True) as mrc:
-            mrc.set_data(data_stack)
-            mrc.voxel_size = voxel_size
-            # Set header fields
-            mrc.header.map = b'MAP '
-            mrc.header.machst = [68, 65, 0, 0]  # Machine stamp
-            mrc.header.nx = data_stack.shape[2]
-            mrc.header.ny = data_stack.shape[1]
-            mrc.header.nz = data_stack.shape[0]
-            mrc.header.mode = 2  # Mode 2 for float32 data
-            mrc.header.mx = data_stack.shape[2]
-            mrc.header.my = data_stack.shape[1]
-            mrc.header.mz = data_stack.shape[0]
-            mrc.header.cella = [voxel_size[0] * data_stack.shape[2],
-                                voxel_size[1] * data_stack.shape[1],
-                                voxel_size[2] * data_stack.shape[0]]
-            mrc.header.mapc = 1
-            mrc.header.mapr = 2
-            mrc.header.maps = 3
-            mrc.update_header_from_data()
-    except Exception as e:
-        print(f"Error writing MRCS file: {e}")
-        sys.exit(1)
-
 def rotate_and_project(volume, phi, theta, psi):
     """Rotates the volume and projects it along the Z-axis."""
     # Rotate volume by theta around Y-axis
@@ -322,23 +295,10 @@ for i, (phi, theta) in enumerate(zip(phi_angles, theta_angles)):
         T_mean = np.mean(proj_filtered)
         T_std = np.std(proj_filtered)
         T_norm = (proj_filtered - T_mean) / T_std
-        # Padd the projection
-        #T_padded = pad_template_to_image(T_norm, I_norm.shape)
-        # Perform cross correlation
-        cross_corr = cross_correlate_top_left(I_filtered, T_norm)
-        
-        
-        # Plot the cross-correlation result
-        #plt.figure(figsize=(6, 6))
-        #plt.imshow(cross_corr, cmap='gray')
-        #plt.title(f'Cross-Correlation (phi={phi:.2f}, theta={theta:.2f}, psi={psi:.2f})')
-        #plt.colorbar()
-        #plt.axis('off')
-        #plt.show()
-        
+        # Calculate cross correlation
+        cross_corr = cross_correlate_top_left(I_filtered, T_norm)        
         # Update max elements
-        ncc_max = np.maximum(ncc_max, cross_corr)
-        
+        ncc_max = np.maximum(ncc_max, cross_corr)        
         # Update mean and variance using Welford's algorithm
         n += 1
         delta = cross_corr - ncc_mean
@@ -346,11 +306,6 @@ for i, (phi, theta) in enumerate(zip(phi_angles, theta_angles)):
         delta2 = cross_corr - ncc_mean
         ncc_M2 += delta * delta2
         
-        #if n % 50 == 0:
-        #        end_time = time.time()
-        #        print(f"Cross-correlation computation taken for 50 templates : {end_time - start_time} seconds")
-        #        start_time = time.time()
-
 # Calculate the variance
 ncc_variance = ncc_M2 / (n - 1) if n > 1 else np.zeros_like(I_filtered, dtype=np.float32)
 
